@@ -47,6 +47,4 @@
 #define K230_HS_USB0_REFERENCE	34
 #define K230_HS_USB1_REFERENCE	35
 
-#define K230_NUM_CLKS		36
-
 #endif /* CLOCK_K230_CLK_H */
