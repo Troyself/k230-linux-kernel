@@ -159,9 +159,9 @@
                         compatible = "canaan,k230-pll";
                         reg = <0x0 0x91102000 0x0 0x1000>;
                         #clock-cells = <0>;
+                        clocks = <&osc24m>;
 
                         status = "okay";
-                        clocks = <&osc24m>;
                 };
 
                 sysclk: clock-controller@91100000 {
@@ -169,7 +169,6 @@
                         reg = <0x0 0x91100000 0x0 0x1000>;
                         #clock-cells = <1>;
 
-                        status = "okay";
                         clocks = <&osc24m>, <&plls>;
                         clock-output-names = "CPU0_SRC", 
                         "CPU0_ACLK", "CPU0_PLIC", "CPU0_NOC_DDRCP5", "CPU0_PCLK",
@@ -183,12 +182,9 @@
                         "HS_SD0_BASE_GATE", "HS_SD1_BASE_GATE", "HS_OSPI_SRC",
                         "HS_USB_REF_51M", "HS_SD_TIMER_SRC", "HS_SD0_TIMER_GATE",
                         "HS_SD1_TIMER_GATE", "HS_USB0_REFERENCE", "HS_USB1_REFERENCE";
+
+                        status = "okay";
                 };
                 
-                test {
-                        compatible = "canaan,test-node";
-                        clocks = <&sysclk K230_CPU0_SRC>;
-                        clock-names = "test_node";
-                };
         };
 };

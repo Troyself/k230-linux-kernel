@@ -10,20 +10,17 @@ maintainers:
   - Bo Wang <Juvenoia@...>
   - Xukai Wang <kingxukai@zohomail.com>
 
-description: |
+description:
   Canaan Kendryte K230 SoC clocks driver bindings. The clock
   controller node must be defined as a child node of the K230
   system controller node.
 
 properties:
   compatible:
-    const: canaan,k230-clk
+    const: canaan,k230-clk-composite
 
   clocks:
     maxItems: 1
-    description:
-      Phandle of the SoC 24MHz fixed-rate oscillator clock.
-      - See more detail in <dt-bindings/clock/k230-clk.h>
 
   '#clock-cells':
     const: 1
@@ -43,11 +40,11 @@ examples:
         compatible  = "fixed-clock";
         clock-frequency = <24000000>;
         clock-accuracy  = <0>;
+        clock-output-names = "osc24m";
 
         status  = "okay";
-        clock-output-names = "osc24m";
     };
-    
+
     plls: clock-plls {
         #clock-cells  = <0>;
         compatible  = "canaan,k230-pll";
@@ -62,8 +59,6 @@ examples:
         compatible  = "canaan,k230-clk-composite";
         reg = <0x0 0x91100000 0x0 0x1000>;
         clocks  = <&osc24m>, <&plls>;
-        
-        status = "okay";
         clock-output-names = "CPU0_SRC", "CPU0_ACLK",
         "CPU0_PLIC", "CPU0_NOC_DDRCP5", "CPU0_PCLK",
         "PMU_PCLK", "HS_HCLK_HIGN_SRC", "HS_HCLK_HIGN_GATE",
@@ -76,6 +71,8 @@ examples:
         "HS_SD0_BASE_GATE", "HS_SD1_BASE_GATE", "HS_OSPI_SRC",
         "HS_USB_REF_51M", "HS_SD_TIMER_SRC", "HS_SD0_TIMER_GATE",
         "HS_SD1_TIMER_GATE", "HS_USB0_REFERENCE", "HS_USB1_REFERENCE";
+
+        status = "okay";
     };
 
     /* Consumer Usage: */
