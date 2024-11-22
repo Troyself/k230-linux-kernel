@@ -759,8 +759,8 @@ static int k230_clk_find_approximate(struct k230_clk *clk,
 		break;
 	/* mul and div can be changeable. */
 	case K230_MUL_DIV:
-		if (cfg->rate_reg_off == 230_CLK_CODEC_ADC_MCLKDIV_OFFSET ||
-			cfg->rate_reg_off == 230_CLK_CODEC_DAC_MCLKDIV_OFFSET) {
+		if (cfg->rate_reg_off == K230_CLK_CODEC_ADC_MCLKDIV_OFFSET ||
+			cfg->rate_reg_off == K230_CLK_CODEC_DAC_MCLKDIV_OFFSET) {
 			for (u32 j = 0; j < 9; j++) {
 				if (0 == (rate - codec_clk[j])) {
 					*div = codec_div[j][0];
@@ -877,27 +877,20 @@ static int k230_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 }
 
 #define K230_CLK_OPS_GATE				\
-	{						\
-		.enable		= k230_clk_enable,	\
-		.disable	= k230_clk_disable,	\
-		.is_enabled	= k230_clk_is_enabled,	\
-	}
+	.enable		= k230_clk_enable,		\
+	.disable	= k230_clk_disable,		\
+	.is_enabled	= k230_clk_is_enabled
 
 #define K230_CLK_OPS_RATE				\
-	{						\
-		.set_rate    = k230_clk_set_rate,	\
-		.round_rate  = k230_clk_round_rate,	\
-		.recalc_rate = k230_clk_get_rate,	\
-
-	}
+	.set_rate    = k230_clk_set_rate,		\
+	.round_rate  = k230_clk_round_rate,		\
+	.recalc_rate = k230_clk_get_rate
 
 #define K230_CLK_OPS_MUX				\
-	{						\
-		.set_parent	 = k230_clk_set_parent,	\
-		.get_parent	 = k230_clk_get_parent,	\
-	}
+	.set_parent	 = k230_clk_set_parent,		\
+	.get_parent	 = k230_clk_get_parent
 
-#define K230_CLK_OPS_ID_NULL				0
+#define K230_CLK_OPS_ID_NONE				0
 #define K230_CLK_OPS_ID_GATE_ONLY			1
 #define K230_CLK_OPS_ID_RATE_ONLY			2
 #define K230_CLK_OPS_ID_RATE_GATE			3
@@ -907,8 +900,8 @@ static int k230_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 #define K230_CLK_OPS_ID_ALL				7
 #define K230_CLK_OPS_ID_NUM				8
 
-const static clk_ops k230_clk_ops_arr[K230_CLK_OPS_NUM] = {
-	[K230_CLK_OPS_ID_NULL] = {
+static const  struct clk_ops k230_clk_ops_arr[K230_CLK_OPS_ID_NUM] = {
+	[K230_CLK_OPS_ID_NONE] = {
 
 	},
 	[K230_CLK_OPS_ID_GATE_ONLY] = {
@@ -964,7 +957,7 @@ static void k230_register_clk(struct device_node *np, struct k230_sysclk *ksc,
 	if (cfg->have_gate) {
 		cfg->gate_reg = (void __iomem *)((unsigned long)clksrc.regs
 				+ (unsigned long)cfg->gate_reg_off);
-		clk_id += K230_CLKS_OPS_ID_GATE_ONLY;
+		clk_id += K230_CLK_OPS_ID_GATE_ONLY;
 	}
 
 	if (cfg->have_rate_c)
