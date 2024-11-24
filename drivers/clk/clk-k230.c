@@ -14,18 +14,15 @@
 #include <linux/of_clk.h>
 #include <linux/of_address.h>
 #include <linux/clk-provider.h>
-#include <linux/bitfield.h>
 #include <linux/delay.h>
 #include <linux/of_device.h>
 #include <linux/module.h>
 #include <linux/clk.h>
+#include <linux/bitfield.h>
 #include <linux/of_platform.h>
-
 #include <dt-bindings/clock/k230-clk.h>
 
-/*
- * PLL control register bits.
- */
+/* PLL control register bits. */
 #define K230_PLL_BYPASS_ENABLE		BIT(19)
 #define K230_PLL_GATE_ENABLE		BIT(2)
 #define K230_PLL_GATE_WRITE_ENABLE	BIT(18)
@@ -43,53 +40,51 @@
 #define K230_PLL_BYPASS_REG_OFFSET	0x04
 #define K230_PLL_GATE_REG_OFFSET	0x08
 #define K230_PLL_LOCK_REG_OFFSET	0x0C
-/*
- * PLL lock register bits.
- */
-#define K230_PLL_STATUS_MASK            BIT(0)	
+/* PLL lock register bits.  */
+#define K230_PLL_STATUS_MASK            BIT(0)
 
 /* K230 CLK MACROS */
 #define K230_GATE_FORMAT(_reg, _bit, _reverse, _have_gate)                      \
 	.gate_reg_off = (_reg),                                                 \
 	.gate_bit_enable = (_bit),                                              \
 	.gate_bit_reverse = (_reverse),                                         \
-        .have_gate = (_have_gate)
+	.have_gate = (_have_gate)
 
 #define K230_RATE_FORMAT(_mul_min, _mul_max, _mul_shift, _mul_mask,             \
-                         _div_min, _div_max, _div_shift, _div_mask,             \
-                         _reg, _bit, _method, _reg_c, _bit_c,                   \
-                        _mul_min_c, _mul_max_c, _mul_shift_c, _mul_mask_c,      \
-                        _have_rate, _have_rate_c)                               \
-        .rate_mul_min = (_mul_min),                                             \
-        .rate_mul_max = (_mul_max),                                             \
-        .rate_mul_shift = (_mul_shift),                                         \
-        .rate_mul_mask = (_mul_mask),                                           \
-        .rate_mul_min_c = (_mul_min_c),                                         \
-        .rate_mul_max_c = (_mul_max_c),                                         \
-        .rate_mul_shift_c = (_mul_shift_c),                                     \
-        .rate_mul_mask_c = (_mul_mask_c),                                       \
-        .rate_div_min = (_div_min),                                             \
-        .rate_div_max = (_div_max),                                             \
-        .rate_div_shift = (_div_shift),                                         \
-        .rate_div_mask = (_div_mask),                                           \
-        .rate_reg_off = (_reg),                                                 \
-        .rate_reg_off_c = (_reg_c),                                             \
-        .rate_write_enable_bit = (_bit),                                        \
-        .rate_write_enable_bit_c = (_bit_c),                                    \
-        .method = (_method),                                                    \
-        .have_rate = (_have_rate),                                              \
-        .have_rate_c = (_have_rate_c)
+			_div_min, _div_max, _div_shift, _div_mask,		\
+			_reg, _bit, _method, _reg_c, _bit_c,			\
+			_mul_min_c, _mul_max_c, _mul_shift_c, _mul_mask_c,      \
+			_have_rate, _have_rate_c)                               \
+	.rate_mul_min = (_mul_min),                                             \
+	.rate_mul_max = (_mul_max),                                             \
+	.rate_mul_shift = (_mul_shift),                                         \
+	.rate_mul_mask = (_mul_mask),                                           \
+	.rate_mul_min_c = (_mul_min_c),                                         \
+	.rate_mul_max_c = (_mul_max_c),                                         \
+	.rate_mul_shift_c = (_mul_shift_c),                                     \
+	.rate_mul_mask_c = (_mul_mask_c),                                       \
+	.rate_div_min = (_div_min),                                             \
+	.rate_div_max = (_div_max),                                             \
+	.rate_div_shift = (_div_shift),                                         \
+	.rate_div_mask = (_div_mask),                                           \
+	.rate_reg_off = (_reg),                                                 \
+	.rate_reg_off_c = (_reg_c),                                             \
+	.rate_write_enable_bit = (_bit),                                        \
+	.rate_write_enable_bit_c = (_bit_c),                                    \
+	.method = (_method),                                                    \
+	.have_rate = (_have_rate),                                              \
+	.have_rate_c = (_have_rate_c)
 
 #define K230_MUX_FORMAT(_reg, _shift, _mask, _have_mux)                         \
 	.mux_reg_off = (_reg),                                                  \
 	.mux_reg_shift = (_shift),                                              \
 	.mux_reg_mask = (_mask),                                                \
-        .have_mux = (_have_mux)
+	.have_mux = (_have_mux)
 
 #define K230_GATE_FORMAT_ZERO K230_GATE_FORMAT(0, 0, 0, false)
 #define K230_RATE_FORMAT_ZERO K230_RATE_FORMAT(0, 0, 0, 0, 0, 0,                \
-                                               0, 0, 0, 0, 0, 0,                \
-                                               0, 0, 0, 0, 0, false, false)
+						0, 0, 0, 0, 0, 0,		\
+						0, 0, 0, 0, 0, false, false)
 #define K230_MUX_FORMAT_ZERO K230_MUX_FORMAT(0, 0, 0, false)
 
 struct k230_sysclk;
@@ -119,7 +114,7 @@ static struct k230_pll_cfg k230_plls_cfg[] = {
 };
 
 /* K230 PLL_DIVS. */
-enum k230_pll_div_type {
+enum k230_pll_div_id {
 	K230_PLL0_DIV2,
 	K230_PLL0_DIV3,
 	K230_PLL0_DIV4,
@@ -181,112 +176,159 @@ enum k230_clk_div_type {
 	K230_MUL_DIV,
 };
 
+enum k230_clk_parent_type {
+	K230_OSC24M,
+	K230_PLL,
+	K230_PLL_DIV,
+	K230_CLK_COMPOSITE,
+};
+
+struct k230_clk_parent{
+	enum k230_clk_parent_type type;
+	union {
+		enum k230_pll_div_id pll_div_id;
+		enum k230_pll_id pll_id;
+		int clk_id;
+	};
+};
+
 struct k230_clk_cfg {
 /* attr */
 	const char *name;
-        bool read_only;         /* 0-read & write; 1-only read */
+	/* 0-read & write; 1-only read */
+	bool read_only;
+	struct k230_clk_parent parent1;
+	struct k230_clk_parent parent2;
+	int flags;
 
 /* rate */
-        /* info */
-        u32 rate_reg_off;
-        u32 rate_reg_off_c;
-        u32 rate_write_enable_bit;
-        u32 rate_write_enable_bit_c;
-        enum k230_clk_div_type method;
-        bool have_rate;
-        bool have_rate_c;
-        /* mul */
-        u32 rate_mul_min;
-        u32 rate_mul_max;
-        u32 rate_mul_shift;
-        u32 rate_mul_mask;
-        /* mul-changable */
-        u32 rate_mul_min_c;
-        u32 rate_mul_max_c;
-        u32 rate_mul_shift_c;
-        u32 rate_mul_mask_c;
-        /* div */
-        u32 rate_div_min;
-        u32 rate_div_max;
-        u32 rate_div_shift;
-        u32 rate_div_mask;
-        /* reg */
-        void __iomem *rate_reg;
-        void __iomem *rate_reg_c;
+	/* info */
+	u32 rate_reg_off;
+	u32 rate_reg_off_c;
+	u32 rate_write_enable_bit;
+	u32 rate_write_enable_bit_c;
+	enum k230_clk_div_type method;
+	bool have_rate;
+	bool have_rate_c;
+	/* mul */
+	u32 rate_mul_min;
+	u32 rate_mul_max;
+	u32 rate_mul_shift;
+	u32 rate_mul_mask;
+	/* mul-changable */
+	u32 rate_mul_min_c;
+	u32 rate_mul_max_c;
+	u32 rate_mul_shift_c;
+	u32 rate_mul_mask_c;
+	/* div */
+	u32 rate_div_min;
+	u32 rate_div_max;
+	u32 rate_div_shift;
+	u32 rate_div_mask;
+	/* reg */
+	void __iomem *rate_reg;
+	void __iomem *rate_reg_c;
 
 /* gate */
-        bool have_gate;
-        u32 gate_reg_off;
-        u32 gate_bit_enable;
-        u32 gate_bit_reverse;
-        /* reg */
-        void __iomem *gate_reg;
+	bool have_gate;
+	u32 gate_reg_off;
+	u32 gate_bit_enable;
+	u32 gate_bit_reverse;
+	/* reg */
+	void __iomem *gate_reg;
 
 /* mux */
-        bool have_mux;
-        u32 mux_reg_off; 
-        u32 mux_reg_shift; 
-        u32 mux_reg_mask;
-        /* reg */
-        void __iomem *mux_reg;
+	bool have_mux;
+	u32 mux_reg_off;
+	u32 mux_reg_shift;
+	u32 mux_reg_mask;
+	/* reg */
+	void __iomem *mux_reg;
 };
 
-/* SRC: K230-SDK-DTS,
+/* 
+ * SRC: K230-SDK-DTS,
  * SEE: /src/little/linux/arch/riscv/boot/dts/kendryte/clock-provider.dtsi
  */
-static struct k230_clk_cfg k230_clk_cfgs[K230_NUM_CLKS] = {
-        [K230_CPU0_SRC] = {
-                .name = "cpu0_src",
-                .read_only = false,
-                K230_RATE_FORMAT(1, 16, 0, 0,
-                                 16, 16, 1, 0xF,
-                                 0x0, 31, K230_MUL, 0, 0,
-                                 0, 0, 0, 0,
-                                 true, false),
-                K230_GATE_FORMAT(0, 0, 0, true),
-                K230_MUX_FORMAT_ZERO,
-        },
-        [K230_CPU0_ACLK] = {
-                .name = "cpu0_aclk",
-                .read_only = false,
-                K230_RATE_FORMAT(1, 1, 0, 0,
-                                 1, 8, 7, 0x7,
-                                 0x0, 31, K230_MUL, 0, 0,
-                                 0, 0, 0, 0,
-                                 true, false),
-                K230_GATE_FORMAT_ZERO,
-                K230_MUX_FORMAT_ZERO,
-        },
-        [K230_CPU0_PLIC] = {
-                .name = "cpu0_plic",
-                .read_only = false,
-                K230_RATE_FORMAT(1, 1, 0, 0,
-                                 1, 8, 10, 0x7,
-                                 0x0, 31, K230_DIV, 0, 0,
-                                 0, 0, 0, 0,
-                                 true, false),
-                K230_GATE_FORMAT(0, 9, 0, true),
-                K230_MUX_FORMAT_ZERO,
-        },
-        [K230_CPU0_NOC_DDRCP4] = {
-                .name = "cpu0_noc_ddrcp4",
-                .read_only = false,
-                K230_RATE_FORMAT_ZERO,
-                K230_GATE_FORMAT(0x60, 7, 0, true),
-                K230_MUX_FORMAT_ZERO,
-        },
-        [K230_CPU0_PCLK] = {
-                .name = "cpu0_pclk",
-                .read_only = false,
-                K230_RATE_FORMAT(1, 1, 0, 0,
-                                 1, 8, 15, 0x7,
-                                 0x0, 31, K230_DIV, 0, 0,
-                                 0, 0, 0, 0,
-                                 true, false),
-                K230_GATE_FORMAT(0, 13, 0, true),
-                K230_MUX_FORMAT_ZERO,
-        },
+static struct k230_clk_cfg k230_clk_cfgs[] = {
+	[K230_CPU0_SRC] = {
+		.name = "cpu0_src",
+		.read_only = false,
+		.flags = 0,
+		.parent1 = {
+			.type = K230_PLL_DIV,
+			.pll_div_id = K230_PLL0_DIV2,
+		},
+		K230_RATE_FORMAT(1, 16, 0, 0,
+				16, 16, 1, 0xF,
+				0x0, 31, K230_MUL, 0, 0,
+				0, 0, 0, 0,
+				true, false),
+		K230_GATE_FORMAT(0, 0, 0, true),
+		K230_MUX_FORMAT_ZERO,
+	},
+	[K230_CPU0_ACLK] = {
+		.name = "cpu0_aclk",
+		.read_only = false,
+		.flags = 0,
+		.parent1 = {
+			.type = K230_CLK_COMPOSITE,
+			.clk_id = K230_CPU0_SRC,
+		},
+		K230_RATE_FORMAT(1, 1, 0, 0,
+				1, 8, 7, 0x7,
+				0x0, 31, K230_MUL, 0, 0,
+				0, 0, 0, 0,
+				true, false),
+		K230_GATE_FORMAT_ZERO,
+		K230_MUX_FORMAT_ZERO,
+	},
+	[K230_CPU0_PLIC] = {
+		.name = "cpu0_plic",
+		.read_only = false,
+		.flags = 0,
+		.parent1 = {
+			.type = K230_CLK_COMPOSITE,
+			.clk_id = K230_CPU0_SRC,
+		},
+		K230_RATE_FORMAT(1, 1, 0, 0,
+				1, 8, 10, 0x7,
+				0x0, 31, K230_DIV, 0, 0,
+				0, 0, 0, 0,
+				true, false),
+		K230_GATE_FORMAT(0, 9, 0, true),
+		K230_MUX_FORMAT_ZERO,
+	},
+	[K230_CPU0_NOC_DDRCP4] = {
+		.name = "cpu0_noc_ddrcp4",
+		.read_only = false,
+		.flags = 0,
+		.parent1 = {
+			.type = K230_CLK_COMPOSITE,
+			.clk_id = K230_CPU0_SRC,
+		},
+		K230_RATE_FORMAT_ZERO,
+		K230_GATE_FORMAT(0x60, 7, 0, true),
+		K230_MUX_FORMAT_ZERO,
+	},
+	[K230_CPU0_PCLK] = {
+		.name = "cpu0_pclk",
+		.read_only = false,
+		.flags = 0,
+		.parent1 = {
+			.type = K230_PLL_DIV,
+			.pll_div_id = K230_PLL0_DIV4,
+		},
+		K230_RATE_FORMAT(1, 1, 0, 0,
+				1, 8, 15, 0x7,
+				0x0, 31, K230_DIV, 0, 0,
+				0, 0, 0, 0,
+				true, false),
+		K230_GATE_FORMAT(0, 13, 0, true),
+		K230_MUX_FORMAT_ZERO,
+	},
 };
+#define K230_NUM_CLKS ARRAY_SIZE(k230_clk_cfgs)
 
 struct k230_sysclk {
 	void __iomem			*pll_regs, *regs;
@@ -308,22 +350,6 @@ static void k230_init_pll(void __iomem *regs, enum k230_pll_id pllid,
 	pll->gate = base + K230_PLL_GATE_REG_OFFSET;
 	pll->lock = base + K230_PLL_LOCK_REG_OFFSET;
 }
-
-#if 0
-static void k230_pll_wait_for_lock(struct k230_pll *pll)
-{
-	u32 reg, mask = K230_PLL_STATUS_MASK;
-
-	while (true) {
-		reg = readl(pll->lock);
-		if ((reg & mask) == mask)
-			break;
-
-		reg ^= mask;
-		writel(reg, pll->lock);
-	}
-}
-#endif /* static void k230_pll_wait_for_lock */
 
 static bool k230_pll_hw_is_enabled(struct k230_pll *pll)
 {
@@ -353,9 +379,7 @@ static int k230_pll_enable(struct clk_hw *hw)
 	unsigned long flags;
 
 	spin_lock_irqsave(&ksc->pll_lock, flags);
-
 	k230_pll_enable_hw(ksc->regs, pll);
-
 	spin_unlock_irqrestore(&ksc->pll_lock, flags);
 
 	return 0;
@@ -370,20 +394,28 @@ static void k230_pll_disable(struct clk_hw *hw)
 	u32 reg;
 
 	spin_lock_irqsave(&ksc->pll_lock, flags);
-
 	reg = readl(pll->gate);
 
 	reg &= ~(K230_PLL_GATE_ENABLE);
 	reg |= (K230_PLL_GATE_WRITE_ENABLE);
 
 	writel(reg, pll->gate);
-
 	spin_unlock_irqrestore(&ksc->pll_lock, flags);
 }
 
 static int k230_pll_is_enabled(struct clk_hw *hw)
 {
 	return k230_pll_hw_is_enabled(to_k230_pll(hw));
+}
+
+static int k230_pll_init(struct clk_hw *hw)
+{
+	if (k230_pll_is_enabled(hw)) {
+        	pr_info("%s hardware auto enable, set software enable!", clk_hw_get_name(hw));
+		return clk_prepare_enable(hw->clk);
+	}
+
+	return 0;
 }
 
 static unsigned long k230_pll_get_rate(struct clk_hw *hw,
@@ -397,8 +429,10 @@ static unsigned long k230_pll_get_rate(struct clk_hw *hw,
 		return parent_rate;
 
 	reg = readl(pll->lock);
-	if (reg & (K230_PLL_LOCK_REG_OFFSET)) /* now locked */
+	if (reg & (K230_PLL_LOCK_REG_OFFSET)) { /* unlocked */
+		pr_err("pll %s is unlock.\n", clk_hw_get_name(hw));
 		return 0;
+	}
 	reg = readl(pll->div);
 
 	r = ((reg >> K230_PLL_R_SHIFT) & K230_PLL_R_MASK) + 1;
@@ -409,11 +443,12 @@ static unsigned long k230_pll_get_rate(struct clk_hw *hw,
 }
 
 static const struct clk_ops k230_pll_ops = {
-        /* gate */
+	.init		= k230_pll_init,
+	/* gate */
 	.enable	        = k230_pll_enable,
 	.disable	= k230_pll_disable,
 	.is_enabled	= k230_pll_is_enabled,
-        /* rate */
+	/* rate */
 	.recalc_rate	= k230_pll_get_rate,
 };
 
@@ -439,8 +474,7 @@ static int k230_register_pll(struct device_node *np,
 	return of_clk_hw_register(np, &pll->hw);
 }
 
-static int k230_register_plls(struct device_node *np,
-				     struct k230_sysclk *ksc)
+static int k230_register_plls(struct device_node *np, struct k230_sysclk *ksc)
 {
 	int i, ret;
 
@@ -471,11 +505,10 @@ static int k230_register_plls(struct device_node *np,
 		return ret;
 	}
 
-        return 0;
+	return 0;
 }
 
-static int k230_register_pll_divs(struct device_node *np,
-					 struct k230_sysclk *ksc)
+static int k230_register_pll_divs(struct device_node *np, struct k230_sysclk *ksc)
 {
 	for (int i = 0; i < K230_PLL_DIV_NUM; i++) {
 		ksc->dclks[i].hw = clk_hw_register_fixed_factor(NULL, k230_pll_div_cfgs[i].name,
@@ -501,6 +534,13 @@ static int k230_clk_enable(struct clk_hw *hw)
                 return -1;
         }
 
+	pr_debug("clk:%d %s", clk->id, __func__);
+
+	if (!cfg->have_gate) {
+		pr_err("This clock doesn't have gate");
+		return -1;
+	}
+
 	spin_lock_irqsave(&ksc->clk_lock, flags);
 	reg = readl(cfg->gate_reg);
 	if (cfg->gate_bit_reverse)
@@ -521,12 +561,12 @@ static void k230_clk_disable(struct clk_hw *hw)
 	unsigned long flags;
 	u32 reg;
 
-        pr_info("clk:%d %s", clk->id, __func__);
+	pr_debug("clk:%d %s", clk->id, __func__);
 
 	if (!cfg->have_gate) {
-                pr_err("This clock doesn't have gate, can't be controled by disabling it");
+		pr_err("This clock doesn't have gate");
 		return;
-        }
+	}
 
 	spin_lock_irqsave(&ksc->clk_lock, flags);
 	reg = readl(cfg->gate_reg);
@@ -542,30 +582,30 @@ static void k230_clk_disable(struct clk_hw *hw)
 
 static int k230_clk_is_enabled(struct clk_hw *hw)
 {
-        struct k230_clk *clk = to_k230_clk(hw);
-        struct k230_sysclk *ksc = clk->ksc;
-        struct k230_clk_cfg *cfg = &k230_clk_cfgs[clk->id];
-        unsigned long flags;
-        u32 reg;
-        int ret;
+	struct k230_clk *clk = to_k230_clk(hw);
+	struct k230_sysclk *ksc = clk->ksc;
+	struct k230_clk_cfg *cfg = &k230_clk_cfgs[clk->id];
+	unsigned long flags;
+	u32 reg;
+	int ret;
 
-        if (!cfg->have_gate) {
-                pr_err("This clock doesn't have gate, can't be controled by disabling it");
-                return -1;
-        }
+	if (!cfg->have_gate) {
+		pr_err("This clock doesn't have gate");
+		return -1;
+	}
 
 	spin_lock_irqsave(&ksc->clk_lock, flags);
 	reg = readl(cfg->gate_reg);
 
-        /* Check gate bit condition based on configuration and set ret accordingly */
-        if (cfg->gate_bit_reverse)
-            ret = (BIT(cfg->gate_bit_enable) & reg) ? 1 : 0;
-        else
-            ret = (BIT(cfg->gate_bit_enable) & ~reg) ? 1 : 0;
+	/* Check gate bit condition based on configuration and then set ret */
+	if (cfg->gate_bit_reverse)
+		ret = (BIT(cfg->gate_bit_enable) & reg) ? 1 : 0;
+	else
+		ret = (BIT(cfg->gate_bit_enable) & ~reg) ? 1 : 0;
 
 	spin_unlock_irqrestore(&ksc->clk_lock, flags);
 
-        return ret;
+	return ret;
 }
 
 static int k230_clk_set_parent(struct clk_hw *hw, u8 index)
@@ -576,10 +616,10 @@ static int k230_clk_set_parent(struct clk_hw *hw, u8 index)
 	unsigned long flags;
 	u8 reg;
 
-        if (!cfg->have_mux) {
-                pr_err("This clock doesn't have mux, can't be controled by setting parent");
-                return -1;
-        }
+	if (!cfg->have_mux) {
+		pr_err("This clock doesn't have mux");
+		return -1;
+	}
 
 	spin_lock_irqsave(&ksc->clk_lock, flags);
 	reg = (cfg->mux_reg_mask & index) << cfg->mux_reg_shift;
@@ -597,10 +637,10 @@ static u8 k230_clk_get_parent(struct clk_hw *hw)
 	unsigned long flags;
 	u8 reg;
 
-        if (!cfg->have_mux) {
-                pr_err("This clock doesn't have mux, can't be controled by getting parent");
-                return -1;
-        }
+	if (!cfg->have_mux) {
+		pr_err("This clock doesn't have mux");
+		return -1;
+	}
 
 	spin_lock_irqsave(&ksc->clk_lock, flags);
 	reg = readb(cfg->mux_reg);
@@ -615,48 +655,57 @@ static unsigned long k230_clk_get_rate(struct clk_hw *hw,
 	struct k230_clk *clk = to_k230_clk(hw);
 	struct k230_clk_cfg *cfg = &k230_clk_cfgs[clk->id];
 	u32 mul, div;
-        pr_info("%d:%s", clk->id, __func__);
+
+	pr_debug("%d:%s", clk->id, __func__);
 
 	if (!cfg->have_rate) /* no divider, return parents' clk */
 		return parent_rate;
 
 	switch (cfg->method) {
-                /*
-                 *  K230_MUL: 1/div_max, 2/div_max, 3/div_max...
-                 *  K230_DIV: mul_max/1, mul_max/2, mul_max/3...
-                 *  K230_MUL_DIV: x/y...
-                 */
-	        case K230_MUL:
-	        	mul = (readl(cfg->rate_reg) >> cfg->rate_div_shift) & cfg->rate_div_mask;
-	        	mul++;
-	        	div = cfg->rate_div_max;
-	        	break;
-	        case K230_DIV:
-	        	mul = cfg->rate_mul_max;
-	        	div = (readl(cfg->rate_reg) >> cfg->rate_div_shift) & cfg->rate_div_mask;
-	        	div++;
-	        	break;
-	        case K230_MUL_DIV:
-	        	if (!cfg->have_rate_c) {
-	        		mul = (readl(cfg->rate_reg) >> cfg->rate_mul_shift) & cfg->rate_mul_mask;
-	        		div = (readl(cfg->rate_reg) >> cfg->rate_div_shift) & cfg->rate_div_mask;
-	        	} else {
-	        		mul = (readl(cfg->rate_reg_c) >> cfg->rate_mul_shift_c) & cfg->rate_mul_mask_c;
-	        		div = (readl(cfg->rate_reg_c) >> cfg->rate_div_shift) & cfg->rate_div_mask;
-	        	}
-	        	break;
-	        default:
-	        	return 0;
+	/*
+	 *  K230_MUL: 1/div_max, 2/div_max, 3/div_max...
+	 *  K230_DIV: mul_max/1, mul_max/2, mul_max/3...
+	 *  K230_MUL_DIV: x/y...
+	 */
+	case K230_MUL:
+		div = cfg->rate_div_max;
+		mul = (readl(cfg->rate_reg) >> cfg->rate_div_shift)
+			& cfg->rate_div_mask;
+		mul++;
+		break;
+	case K230_DIV:
+		mul = cfg->rate_mul_max;
+		div = (readl(cfg->rate_reg) >> cfg->rate_div_shift)
+			& cfg->rate_div_mask;
+		div++;
+		break;
+	case K230_MUL_DIV:
+		if (!cfg->have_rate_c) {
+			mul = (readl(cfg->rate_reg) >> cfg->rate_mul_shift)
+				& cfg->rate_mul_mask;
+			div = (readl(cfg->rate_reg) >> cfg->rate_div_shift)
+				& cfg->rate_div_mask;
+		} else {
+			mul = (readl(cfg->rate_reg_c) >> cfg->rate_mul_shift_c)
+				& cfg->rate_mul_mask_c;
+			div = (readl(cfg->rate_reg_c) >> cfg->rate_div_shift)
+				& cfg->rate_div_mask;
+		}
+		break;
+	default:
+		return 0;
 	}
 
-        pr_info("parent_rate:%lu mul:%u div:%u rate:%llu", parent_rate, mul, div, div_u64((u64)parent_rate * mul, div));
+	pr_debug("parent_rate:%lu mul:%u div:%u rate:%llu", parent_rate, mul, div,
+		div_u64((u64)parent_rate * mul, div));
 	return div_u64((u64)parent_rate * mul, div);
 }
 
-static int k230_clk_find_approximate(struct k230_clk *clk, u32 mul_min, u32 mul_max,
-				       u32 div_min, u32 div_max, enum k230_clk_div_type method,
-				       unsigned long rate, unsigned long parent_rate,
-				       u32 *div, u32 *mul)
+static int k230_clk_find_approximate(struct k230_clk *clk,
+					u32 mul_min, u32 mul_max, u32 div_min, u32 div_max,
+					enum k230_clk_div_type method,
+					unsigned long rate, unsigned long parent_rate,
+					u32 *div, u32 *mul)
 {
 	long abs_min;
 	long abs_current;
@@ -665,7 +714,7 @@ static int k230_clk_find_approximate(struct k230_clk *clk, u32 mul_min, u32 mul_
 
 	struct k230_clk_cfg *cfg = &k230_clk_cfgs[clk->id];
 
-	volatile uint32_t codec_clk[9] = {
+	uint32_t codec_clk[9] = {
 		2048000,
 		3072000,
 		4096000,
@@ -676,7 +725,7 @@ static int k230_clk_find_approximate(struct k230_clk *clk, u32 mul_min, u32 mul_
 		24576000,
 		49152000
 	};
-	volatile uint32_t codec_div[9][2] = {
+	uint32_t codec_div[9][2] = {
 		{3125, 16},
 		{3125, 24},
 		{3125, 32},
@@ -688,7 +737,7 @@ static int k230_clk_find_approximate(struct k230_clk *clk, u32 mul_min, u32 mul_
 		{3125, 384}
 	};
 
-	volatile uint32_t pdm_clk[20] = {
+	uint32_t pdm_clk[20] = {
 		128000,
 		192000,
 		256000,
@@ -710,7 +759,7 @@ static int k230_clk_find_approximate(struct k230_clk *clk, u32 mul_min, u32 mul_
 		24576000,
 		49152000
 	};
-	volatile uint32_t pdm_div[20][2] = {
+	uint32_t pdm_div[20][2] = {
 		{3125, 1},
 		{6250, 3},
 		{3125, 2},
@@ -734,88 +783,92 @@ static int k230_clk_find_approximate(struct k230_clk *clk, u32 mul_min, u32 mul_
 	};
 
 	switch (method) {
-	    /* only mul can be changeable 1/12,2/12,3/12...*/
-		case K230_MUL:
-			perfect_divide = (long)((parent_rate * 1000) / rate);
-			abs_min = abs(perfect_divide -
-					(long)(((long)div_max * 1000) / (long)mul_min));
-                        *mul = mul_min;
+	/* only mul can be changeable 1/12,2/12,3/12...*/
+	case K230_MUL:
+		perfect_divide = (long)((parent_rate * 1000) / rate);
+		abs_min = abs(perfect_divide -
+			     (long)(((long)div_max * 1000) / (long)mul_min));
+		*mul = mul_min;
 
-			for (u32 i = mul_min + 1; i <= mul_max; i++) {
-				abs_current = abs(perfect_divide -
-						(long)((long)((long)div_max * 1000) / (long)i));
-				if (abs_min > abs_current) {
-					abs_min = abs_current;
-					*mul = i;
+		for (u32 i = mul_min + 1; i <= mul_max; i++) {
+			abs_current = abs(perfect_divide -
+					(long)((long)((long)div_max * 1000) / (long)i));
+			if (abs_min > abs_current) {
+				abs_min = abs_current;
+				*mul = i;
+			}
+		}
+
+		*div = div_min;
+		break;
+	/* only div can be changeable, 1/1,1/2,1/3...*/
+	case K230_DIV:
+		perfect_divide = (long)((parent_rate * 1000) / rate);
+		abs_min = abs(perfect_divide -
+			     (long)(((long)div_min * 1000) / (long)mul_max));
+		*div = div_min;
+
+		for (u32 i = div_min + 1; i <= div_max; i++) {
+			abs_current = abs(perfect_divide -
+					 (long)((long)((long)i * 1000) / (long)mul_max));
+			if (abs_min > abs_current) {
+				abs_min = abs_current;
+				*div = i;
+			}
+		}
+
+		*mul = mul_min;
+		break;
+	/* mul and div can be changeable. */
+	case K230_MUL_DIV:
+		if (cfg->rate_reg_off == K230_CLK_CODEC_ADC_MCLKDIV_OFFSET ||
+			cfg->rate_reg_off == K230_CLK_CODEC_DAC_MCLKDIV_OFFSET) {
+			for (u32 j = 0; j < 9; j++) {
+				if (0 == (rate - codec_clk[j])) {
+					*div = codec_div[j][0];
+					*mul = codec_div[j][1];
 				}
 			}
-
-			*div = div_min;
-			break;
-		/* only div can be changeable, 1/1,1/2,1/3...*/
-		case K230_DIV:
-			perfect_divide = (long)((parent_rate * 1000) / rate);
-			abs_min = abs(perfect_divide -
-					(long)(((long)div_min * 1000) / (long)mul_max));
-			*div = div_min;
-
-			for (u32 i = div_min + 1; i <= div_max; i++) {
-				abs_current = abs(perfect_divide -
-						(long)((long)((long)i * 1000) / (long)mul_max));
-				if (abs_min > abs_current) {
-					abs_min = abs_current;
-					*div = i;
+		} else if (cfg->rate_reg_off == K230_CLK_AUDIO_CLKDIV_OFFSET ||
+			cfg->rate_reg_off == K230_CLK_PDM_CLKDIV_OFFSET) {
+			for (u32 j = 0; j < 20; j++) {
+				if (0 == (rate - pdm_clk[j])) {
+					*div = pdm_div[j][0];
+					*mul = pdm_div[j][1];
 				}
 			}
-
-			*mul = mul_min;
-			break;
-		/* mul and div can be changeable. */
-		case K230_MUL_DIV:
-			if (K230_CLK_CODEC_ADC_MCLKDIV_OFFSET == cfg->rate_reg_off || \
-			    K230_CLK_CODEC_DAC_MCLKDIV_OFFSET == cfg->rate_reg_off) {
-				for (u32 j = 0; j < 9; j++) {
-					if (0 == (rate - codec_clk[j])) {
-						*div = codec_div[j][0];
-						*mul = codec_div[j][1];
-					}
-				}
-                        } else if (K230_CLK_AUDIO_CLKDIV_OFFSET == cfg->rate_reg_off || \
-                                   K230_CLK_PDM_CLKDIV_OFFSET == cfg->rate_reg_off) {
-                                for (u32 j = 0; j < 20; j++) {
-					if (0 == (rate - pdm_clk[j])) {
-						*div = pdm_div[j][0];
-						*mul = pdm_div[j][1];
-					}
-				}
-                        } else
-				return -1;
-			break;
-
-		default:
-			pr_err("%s method error!\n", __func__);
+		} else {
 			return -1;
+		}
+		break;
 
+	default:
+		pr_err("%s method error!\n", __func__);
+		return -1;
 	}
 	return 0;
 }
 
-static long k230_clk_round_rate(struct clk_hw *hw, unsigned long rate, unsigned long *parent_rate)
+static long k230_clk_round_rate(struct clk_hw *hw, unsigned long rate,
+				unsigned long *parent_rate)
 {
 	struct k230_clk *clk = to_k230_clk(hw);
 	struct k230_clk_cfg *cfg = &k230_clk_cfgs[clk->id];
-        u32 div = 0, mul = 0;
-        pr_info("clk:%d %s", clk->id, __func__);
+	u32 div = 0, mul = 0;
+
+	pr_debug("clk:%d %s", clk->id, __func__);
 
 	if (k230_clk_find_approximate(clk,
-                                      cfg->rate_mul_min, cfg->rate_mul_max,
-                                      cfg->rate_div_min, cfg->rate_div_max,
-                                      cfg->method, rate, *parent_rate, &div, &mul)) {
+					cfg->rate_mul_min, cfg->rate_mul_max,
+					cfg->rate_div_min, cfg->rate_div_max,
+					cfg->method, rate, *parent_rate, &div, &mul)) {
 		pr_err("[%s]: clk %s round rate error!\n", __func__, clk_hw_get_name(hw));
 		return -1;
 	}
 
-        pr_info("parent_rate:%lu mul:%u div:%u rate:%llu", *parent_rate, mul, div, div_u64((u64)(*parent_rate) * mul, div));
+	pr_debug("parent_rate:%lu mul:%u div:%u rate:%llu", *parent_rate, mul, div,
+		div_u64((u64)(*parent_rate) * mul, div));
+
 	return div_u64((u64)(*parent_rate) * mul, div);
 }
 
@@ -824,29 +877,30 @@ static int k230_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct k230_clk *clk = to_k230_clk(hw);
 	struct k230_clk_cfg *cfg = &k230_clk_cfgs[clk->id];
-        pr_info("%d:%s %lu %lu", clk->id, __func__, rate, parent_rate);
+
+	pr_debug("%d:%s %lu %lu", clk->id, __func__, rate, parent_rate);
 
 	u32 div = 0, mul = 0, reg = 0, reg_c = 0;
 
 	if ((!cfg->have_rate) || (!cfg->rate_reg)) {
-                pr_err("This clock may have no rate");
+		pr_err("This clock may have no rate");
 		return -1;
-        }
+	}
 
 	if ((rate > parent_rate) || (rate == 0) || (parent_rate == 0)) {
-                pr_err("rate or parent_rate error");
+		pr_err("rate or parent_rate error");
 		return -1;
-        }
+	}
 
-        if (cfg->read_only == true){
-                pr_err("This clk rate is read only");
-                return -1;
-        }
+	if (cfg->read_only == true) {
+		pr_err("This clk rate is read only");
+		return -1;
+	}
 
 	if (k230_clk_find_approximate(clk,
-                                      cfg->rate_mul_min, cfg->rate_mul_max,
-                                      cfg->rate_div_min, cfg->rate_div_max,
-                                      cfg->method, rate, parent_rate, &div, &mul)) {
+					cfg->rate_mul_min, cfg->rate_mul_max,
+					cfg->rate_div_min, cfg->rate_div_max,
+					cfg->method, rate, parent_rate, &div, &mul)) {
 		pr_err("[%s]: clk %s set rate error!\n", __func__, clk_hw_get_name(hw));
 		return -1;
 	}
@@ -858,16 +912,14 @@ static int k230_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 		if (cfg->method == K230_DIV) {
 			reg &= ~((cfg->rate_mul_mask) << (cfg->rate_mul_shift));
 			reg |= ((div - 1) & cfg->rate_div_mask) << (cfg->rate_div_shift);
-                }
-		else if (cfg->method == K230_MUL) {
+		} else if (cfg->method == K230_MUL) {
 			reg |= ((mul - 1) & cfg->rate_div_mask) << (cfg->rate_div_shift);
-                }
-		else {
+		} else {
 			reg |= (mul & cfg->rate_mul_mask) << (cfg->rate_mul_shift);
 			reg |= (div & cfg->rate_div_mask) << (cfg->rate_div_shift);
 		}
 		reg |= BIT(cfg->rate_write_enable_bit);
-        } else { 
+	} else {
 		reg = readl(cfg->rate_reg);
 		reg_c = readl(cfg->rate_reg_c);
 		reg &= ~((cfg->rate_div_mask) << (cfg->rate_div_shift));
@@ -879,125 +931,282 @@ static int k230_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 
 		writel(reg_c, cfg->rate_reg_c);
 	}
-        writel(reg, cfg->rate_reg);
+	writel(reg, cfg->rate_reg);
 
-        rate = k230_clk_get_rate(hw, parent_rate);
-        pr_info("the clk:%d's rate is set as: %lu", clk->id, rate);
+	rate = k230_clk_get_rate(hw, parent_rate);
+	pr_debug("the clk:%d's rate is set as: %lu", clk->id, rate);
 	return 0;
 }
 
-static struct clk_ops k230_clk_default_ops[K230_NUM_CLKS] = {};
+#define K230_CLK_OPS_GATE				\
+	.enable		= k230_clk_enable,		\
+	.disable	= k230_clk_disable,		\
+	.is_enabled	= k230_clk_is_enabled
 
-static void k230_register_clk(struct device_node *np,
-				     struct k230_sysclk *ksc, int id,
-				     const struct clk_parent_data *parent_data,
-				     int num_parents, unsigned long flags)
+#define K230_CLK_OPS_RATE				\
+	.set_rate    = k230_clk_set_rate,		\
+	.round_rate  = k230_clk_round_rate,		\
+	.recalc_rate = k230_clk_get_rate
+
+#define K230_CLK_OPS_MUX				\
+	.set_parent	 = k230_clk_set_parent,		\
+	.get_parent	 = k230_clk_get_parent
+
+#define K230_CLK_OPS_ID_NONE				0
+#define K230_CLK_OPS_ID_GATE_ONLY			1
+#define K230_CLK_OPS_ID_RATE_ONLY			2
+#define K230_CLK_OPS_ID_RATE_GATE			3
+#define K230_CLK_OPS_ID_MUX_ONLY			4
+#define K230_CLK_OPS_ID_MUX_GATE			5
+#define K230_CLK_OPS_ID_MUX_RATE			6
+#define K230_CLK_OPS_ID_ALL				7
+#define K230_CLK_OPS_ID_NUM				8
+
+static const  struct clk_ops k230_clk_ops_arr[K230_CLK_OPS_ID_NUM] = {
+	[K230_CLK_OPS_ID_NONE] = {
+
+	},
+	[K230_CLK_OPS_ID_GATE_ONLY] = {
+		K230_CLK_OPS_GATE,
+	},
+	[K230_CLK_OPS_ID_RATE_ONLY] = {
+		K230_CLK_OPS_RATE,
+	},
+	[K230_CLK_OPS_ID_RATE_GATE] = {
+		K230_CLK_OPS_RATE,
+		K230_CLK_OPS_GATE,
+	},
+	[K230_CLK_OPS_ID_MUX_ONLY] = {
+		K230_CLK_OPS_MUX,
+	},
+	[K230_CLK_OPS_ID_MUX_GATE] = {
+		K230_CLK_OPS_MUX,
+		K230_CLK_OPS_GATE,
+	},
+	[K230_CLK_OPS_ID_MUX_RATE] = {
+		K230_CLK_OPS_MUX,
+		K230_CLK_OPS_RATE,
+	},
+	[K230_CLK_OPS_ID_ALL] = {
+		K230_CLK_OPS_MUX,
+		K230_CLK_OPS_RATE,
+		K230_CLK_OPS_GATE,
+	},
+};
+
+static int k230_register_clk(struct device_node *np, struct k230_sysclk *ksc,
+				int id, const struct clk_parent_data *parent_data,
+				u8 num_parents, unsigned long flags)
 {
-
 	struct k230_clk *clk = &ksc->clks[id];
-        struct k230_clk_cfg *cfg = &k230_clk_cfgs[id];
+	struct k230_clk_cfg *cfg = &k230_clk_cfgs[id];
 	struct clk_init_data init = {};
-        struct clk_ops *ops = &k230_clk_default_ops[id];
+	int clk_id = 0;
+	int ret = 0;
 
-	int ret;
+	if (cfg->have_rate) {
+		cfg->rate_reg = (void __iomem *)((unsigned long)clksrc.regs
+				+ (unsigned long)cfg->rate_reg_off);
+		clk_id += K230_CLK_OPS_ID_RATE_ONLY;
+	}
 
-        if (cfg->have_rate) {
-                cfg->rate_reg = (void __iomem*)((unsigned long)clksrc.regs
-                              + (unsigned long)cfg->rate_reg_off);
-	        ops->set_rate    = k230_clk_set_rate;
-	        ops->round_rate  = k230_clk_round_rate;
-	        ops->recalc_rate = k230_clk_get_rate;
-        }
+	if (cfg->have_mux) {
+		cfg->mux_reg = (void __iomem *)((unsigned long)clksrc.regs
+				+ (unsigned long)cfg->mux_reg_off);
+		clk_id += K230_CLK_OPS_ID_MUX_ONLY;
 
-        if (cfg->have_mux && num_parents > 1) {
-                cfg->mux_reg = (void __iomem*)((unsigned long)clksrc.regs
-                             + (unsigned long)cfg->mux_reg_off);
-	        ops->set_parent	 = k230_clk_set_parent;
-	        ops->get_parent	 = k230_clk_get_parent;
-        }
+		/* mux clock doesn't match the case that num_parents less than 2 */
+		if (num_parents < 2) {
+			ret = -EINVAL;
+			goto out;
+		}
+	}
 
-        if (cfg->have_gate) {
-                cfg->gate_reg = (void __iomem*)((unsigned long)clksrc.regs
-                              + (unsigned long)cfg->gate_reg_off);
-	        ops->enable	 = k230_clk_enable;
-	        ops->disable	 = k230_clk_disable;
-                ops->is_enabled  = k230_clk_is_enabled;
-        }
+	if (cfg->have_gate) {
+		cfg->gate_reg = (void __iomem *)((unsigned long)clksrc.regs
+				+ (unsigned long)cfg->gate_reg_off);
+		clk_id += K230_CLK_OPS_ID_GATE_ONLY;
+	}
 
-        if (cfg->have_rate_c)
-                cfg->rate_reg_c = (void __iomem*)((unsigned long)clksrc.regs
-                                + (unsigned long)cfg->rate_reg_off_c);
+	if (cfg->have_rate_c)
+		cfg->rate_reg_c = (void __iomem *)((unsigned long)clksrc.regs
+				+ (unsigned long)cfg->rate_reg_off_c);
 
 	init.name = k230_clk_cfgs[id].name;
 	init.flags = flags;
 	init.parent_data = parent_data;
 	init.num_parents = num_parents;
-        init.ops = ops;
+	init.ops = &k230_clk_ops_arr[clk_id];
 
 	clk->id = id;
 	clk->ksc = ksc;
 	clk->hw.init = &init;
 
 	ret = of_clk_hw_register(np, &clk->hw);
-
 	if (ret) {
 		pr_err("%pOFP: register clock %s failed\n",
-		       np, k230_clk_cfgs[id].name);
+			np, k230_clk_cfgs[id].name);
 		clk->id = -1;
+		goto out;
 	}
+
+out:
+	return ret;
 }
 
-static inline void k230_register_mux_clk(struct device_node *np,
-						struct k230_sysclk *ksc,
-						struct clk_hw *hw1, struct clk_hw *hw2,
-						int id)
+static int k230_register_mux_clk(struct device_node *np,
+					struct k230_sysclk *ksc,
+					struct clk_hw *hw1, struct clk_hw *hw2,
+					int id)
 {
 	const struct clk_parent_data parent_data[] = {
 		{ .hw = hw1 },
 		{ .hw = hw2 }
 	};
-	k230_register_clk(np, ksc, id, parent_data, 2, 0);
+	return k230_register_clk(np, ksc, id, parent_data, 2, 0);
 }
 
-static inline void k230_register_osc24m_child(struct device_node *np,
-						  struct k230_sysclk *ksc, int id)
+static int k230_register_osc24m_child(struct device_node *np,
+					      struct k230_sysclk *ksc, int id)
 {
 	const struct clk_parent_data parent_data = {
 		/* .index = 0 for osc24m.. */
 	};
-	k230_register_clk(np, ksc, id, &parent_data, 1, 0);
+	return k230_register_clk(np, ksc, id, &parent_data, 1, 0);
 }
 
-static inline void k230_register_pll_child(struct device_node *np,
-						  struct k230_sysclk *ksc, int id,
-						  enum k230_pll_id pllid,
-						  unsigned long flags)
+static int k230_register_pll_child(struct device_node *np,
+					   struct k230_sysclk *ksc, int id,
+					   enum k230_pll_id pllid,
+					   unsigned long flags)
 {
 	const struct clk_parent_data parent_data = {
 		.hw = &ksc->plls[pllid].hw,
 	};
-	k230_register_clk(np, ksc, id, &parent_data, 1, flags);
+	return k230_register_clk(np, ksc, id, &parent_data, 1, flags);
 }
 
-static inline void k230_register_pll_div_child(struct device_node *np,
-						      struct k230_sysclk *ksc, int id,
-						      enum k230_pll_div_type pll_div_type,
-						      unsigned long flags)
+static int k230_register_pll_div_child(struct device_node *np,
+					       struct k230_sysclk *ksc, int id,
+					       enum k230_pll_div_id pll_div_id,
+					       unsigned long flags)
 {
 	const struct clk_parent_data parent_data = {
-		.hw = ksc->dclks[pll_div_type].hw,
+		.hw = ksc->dclks[pll_div_id].hw,
 	};
-	k230_register_clk(np, ksc, id, &parent_data, 1, flags);
+	return k230_register_clk(np, ksc, id, &parent_data, 1, flags);
 }
 
-static inline void k230_register_clk_child(struct device_node *np,
-						  struct k230_sysclk *ksc, int id,
-						  int parent_id)
+static int k230_register_clk_child(struct device_node *np,
+					   struct k230_sysclk *ksc, int id,
+					   int parent_id)
 {
 	const struct clk_parent_data parent_data = {
 		.hw = &ksc->clks[parent_id].hw,
 	};
-	k230_register_clk(np, ksc, id, &parent_data, 1, 0);
+	return k230_register_clk(np, ksc, id, &parent_data, 1, 0);
+}
+
+static int _k230_clk_mux_get_hw(struct k230_sysclk *ksc,
+		struct k230_clk_parent *pclk, struct clk_hw **hw)
+{
+	int ret = 0;
+
+	switch (pclk->type) {
+	case K230_OSC24M:
+		*hw = NULL;
+		break;
+	case K230_PLL:
+		*hw = &ksc->plls[pclk->pll_id].hw;
+		break;
+	case K230_PLL_DIV:
+		*hw = ksc->dclks[pclk->pll_div_id].hw;
+		break;
+	case K230_CLK_COMPOSITE:
+		*hw = &ksc->clks[pclk->clk_id].hw;
+		break;
+	default:
+		pr_err("Invalid type");
+		ret = -EINVAL;
+		goto out;
+	}
+out:
+	return ret;
+}
+
+static int k230_clk_mux_get_hw(struct k230_sysclk *ksc, struct k230_clk_cfg *cfg,
+				struct clk_hw **hw1, struct clk_hw **hw2)
+{
+	int ret = 0;
+	struct k230_clk_parent *pclk1, *pclk2;
+
+	pclk1 = &cfg->parent1;
+	pclk2 = &cfg->parent2;
+
+	ret = _k230_clk_mux_get_hw(ksc, pclk1, hw1);
+	if (ret)
+		goto out;
+
+	ret = _k230_clk_mux_get_hw(ksc, pclk2, hw2);
+	if (ret)
+		goto out;
+out:
+	return ret;
+}
+
+static int k230_register_clks(struct device_node *np, struct k230_sysclk *ksc)
+{
+	struct k230_clk_cfg *cfg;
+	struct k230_clk_parent *pclk;
+	struct clk_hw *hw1, *hw2;
+	int ret = 0;
+
+	/*
+	 *  pll0_div2 sons: CPU0_SRC
+	 *  pll0_div4 sons: CPU0_PCLK
+	 *  CPU0_SRC sons: CPU0_ACLK, CPU0_PLIC, CPU0_NOC_DDRCP4
+	 */
+	for (int i = 0; i < K230_NUM_CLKS; i++) {
+		cfg = &k230_clk_cfgs[i];
+		if (cfg->have_mux) {
+			ret = k230_clk_mux_get_hw(ksc, cfg, &hw1, &hw2);
+			if (ret)
+				goto out;
+
+			ret = k230_register_mux_clk(np, ksc, hw1, hw2, i);
+			if (ret)
+				goto out;
+		} else {
+			pclk = &cfg->parent1;
+			switch (pclk->type) {
+			case K230_OSC24M:
+				ret = k230_register_osc24m_child(np, ksc, i);
+				break;
+			case K230_PLL:
+				ret = k230_register_pll_child(np, ksc, i,
+						pclk->pll_id, cfg->flags);
+				break;
+			case K230_PLL_DIV:
+				ret = k230_register_pll_div_child(np, ksc, i,
+						pclk->pll_div_id, cfg->flags);
+				break;
+			case K230_CLK_COMPOSITE:
+				ret = k230_register_clk_child(np, ksc, i, pclk->clk_id);
+				break;
+			default:
+				pr_err("Invalid type");
+				ret = -EINVAL;
+				goto out;
+			}
+		}
+		if (ret) {
+			pr_err("%pOFP: register child id %d failed", np, i);
+			goto out;
+		}
+	}
+
+out:
+	return ret;
 }
 
 static struct clk_hw *k230_clk_hw_onecell_get(struct of_phandle_args *clkspec,
@@ -1006,14 +1215,14 @@ static struct clk_hw *k230_clk_hw_onecell_get(struct of_phandle_args *clkspec,
 	struct k230_sysclk *ksc;
 	unsigned int idx;
 
-        if (clkspec->args_count != 1)
-                return ERR_PTR(-EINVAL);
-        idx = clkspec->args[0];
+	if (clkspec->args_count != 1)
+		return ERR_PTR(-EINVAL);
+	idx = clkspec->args[0];
 
-        if (!data)
-                return ERR_PTR(-EINVAL);
+	if (!data)
+		return ERR_PTR(-EINVAL);
 
-        ksc = (struct k230_sysclk *)data;
+	ksc = (struct k230_sysclk *)data;
 
 	if (idx >= K230_NUM_CLKS)
 		return ERR_PTR(-EINVAL);
@@ -1021,70 +1230,102 @@ static struct clk_hw *k230_clk_hw_onecell_get(struct of_phandle_args *clkspec,
 	return &ksc->clks[idx].hw;
 }
 
-static void __init k230_clk_init_plls(struct device_node *np)
+static int k230_clk_init_clk_plls(struct device_node *np)
 {
 	/* plls are the very son of osc24m, and reg are from sysctl_boot */
 	struct k230_sysclk *ksc = &clksrc;
-	int ret;
+	int ret = 0;
 
-        pr_info("%s\n", __func__);
+	if (!np) {
+		pr_err("device node pointer is NULL");
+		ret = -EINVAL;
+		goto out;
+	}
 
 	spin_lock_init(&ksc->pll_lock);
 
 	ksc->pll_regs = of_iomap(np, 0);
 	if (!ksc->pll_regs) {
 		pr_err("%pOFP: failed to map registers\n", np);
-		return;
+		return -ENOMEM;
 	}
 
 	ret = k230_register_plls(np, ksc);
 	if (ret) {
-                pr_err("K230 register plls error\n");
-		return;
-        }
+		pr_err("%pOFP: register plls failed %d", np, ret);
+		goto out_unmap;
+	}
 
 	/* Registration for all pll_divs */
 	ret = k230_register_pll_divs(np, ksc);
-        if (ret) {
-                pr_err("K230 register pll divs error\n");
-                return;
-        }
-}
-CLK_OF_DECLARE_DRIVER(k230_pll, "canaan,k230-pll", k230_clk_init_plls);
+	if (ret) {
+		pr_err("%p register pll divs failed %d", np, ret);
+		goto out_unmap;
+	}
 
-static void __init k230_clk_init_clks(struct device_node *np)
+out_unmap:
+	iounmap(ksc->pll_regs);
+out:
+	return ret;
+}
+
+static int k230_clk_init_clk_composite(struct device_node *np)
 {
 	struct k230_sysclk *ksc = &clksrc;
-	int ret;
+	int ret = 0;
 
-        pr_info("%s", __func__);
+	if (!np) {
+		pr_err("device node pointer is NULL");
+		ret = -EINVAL;
+		goto out;
+	}
 
 	spin_lock_init(&ksc->clk_lock);
 
-	ksc->regs = of_iomap(np, 0);
+	ksc->regs = of_iomap(np, 1);
 	if (!ksc->regs) {
 		pr_err("%pOFP: failed to map registers\n", np);
-		return;
+		ret = -ENOMEM;
+		goto out;
 	}
 
-	/* Register for pll0_div2 sons: CPU0_SRC, */
-	k230_register_pll_div_child(np, ksc, K230_CPU0_SRC, K230_PLL0_DIV2, 0);
-
-	/* Register for CPU0_SRC sons: CPU0_ACLK, CPU0_PLIC, CPU0_NOC_DDRCP4 */
-	k230_register_clk_child(np, ksc, K230_CPU0_ACLK, K230_CPU0_SRC);
-	k230_register_clk_child(np, ksc, K230_CPU0_PLIC, K230_CPU0_SRC);
-	k230_register_clk_child(np, ksc, K230_CPU0_NOC_DDRCP4, K230_CPU0_SRC);
-
-	/* Register for pll0_div4 sons: CPU0_PCLK*/
-        k230_register_pll_div_child(np, ksc, K230_CPU0_PCLK, K230_PLL0_DIV4, 0);
+	ret = k230_register_clks(np, ksc);
+	if (ret) {
+		pr_err("%pOFP: register clock provider failed %d", np, ret);
+		goto out_unmap;
+	}
 
 	ret = of_clk_add_hw_provider(np, k230_clk_hw_onecell_get, ksc);
 	if (ret) {
 		pr_err("%pOFP: add clock provider failed %d\n", np, ret);
+		goto out_unmap;
+	}
+
+out_unmap:
+	iounmap(ksc->regs);
+out:
+	return ret;
+}
+
+static void __init k230_clk_init_clks(struct device_node *np)
+{
+	int ret = 0;
+
+	ret = k230_clk_init_clk_plls(np);
+	if (ret) {
+		pr_err("%pOFP: init clk plls failed %d", np, ret);
 		return;
 	}
+	pr_debug("%pOFP: success to init plls", np);
+
+	ret = k230_clk_init_clk_composite(np);
+	if (ret) {
+		pr_err("%pOFP: init clk clks failed %d", np, ret);
+		return;
+	}
+	pr_debug("%pOFP: success to init clks", np);
 }
-CLK_OF_DECLARE_DRIVER(k230_clk, "canaan,k230-clk-composite", k230_clk_init_clks);
+CLK_OF_DECLARE_DRIVER(k230_clk, "canaan,k230-clk", k230_clk_init_clks);
 
 /* test part */
 
