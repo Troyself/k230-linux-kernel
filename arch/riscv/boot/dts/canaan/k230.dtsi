@@ -176,14 +176,5 @@
 
 			status = "okay";
 		};
-
-		test {
-			compatible = "canaan,test-node";
-			clocks = <&sysclk K230_CPU0_SRC>, <&sysclk K230_CPU0_ACLK>,
-			<&sysclk K230_CPU0_PLIC>, <&sysclk K230_CPU0_NOC_DDRCP4>,
-			<&sysclk K230_CPU0_PCLK>;
-			clock-names = "cpu0_src", "cpu0_aclk", "cpu0_plic",
-			"cpu0_noc_ddrcp5", "cpu0_pclk";
-		};
 	};
 };
