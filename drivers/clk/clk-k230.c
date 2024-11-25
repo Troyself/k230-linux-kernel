@@ -183,7 +183,7 @@ enum k230_clk_parent_type {
 	K230_CLK_COMPOSITE,
 };
 
-struct k230_clk_parent{
+struct k230_clk_parent {
 	enum k230_clk_parent_type type;
 	union {
 		enum k230_pll_div_id pll_div_id;
@@ -246,7 +246,7 @@ struct k230_clk_cfg {
 	void __iomem *mux_reg;
 };
 
-/* 
+/*
  * SRC: K230-SDK-DTS,
  * SEE: /src/little/linux/arch/riscv/boot/dts/kendryte/clock-provider.dtsi
  */
@@ -339,7 +339,7 @@ struct k230_sysclk {
 } clksrc;
 
 static void k230_init_pll(void __iomem *regs, enum k230_pll_id pllid,
-			  struct k230_pll *pll)
+			struct k230_pll *pll)
 {
 	void __iomem *base;
 
@@ -349,6 +349,21 @@ static void k230_init_pll(void __iomem *regs, enum k230_pll_id pllid,
 	pll->bypass = base + K230_PLL_BYPASS_REG_OFFSET;
 	pll->gate = base + K230_PLL_GATE_REG_OFFSET;
 	pll->lock = base + K230_PLL_LOCK_REG_OFFSET;
+}
+
+static int k230_pll_prepare(struct clk_hw *hw)
+{
+	struct k230_pll *pll = to_k230_pll(hw);
+	u32 reg;
+
+	/* wait for PLL lock */
+	while (true) {
+		reg = readl(pll->lock);
+		/* must not return until it is fully prepared */
+		if ((reg & K230_PLL_STATUS_MASK) == K230_PLL_STATUS_MASK)
+			break;
+	}
+	return 0;
 }
 
 static bool k230_pll_hw_is_enabled(struct k230_pll *pll)
@@ -376,11 +391,10 @@ static int k230_pll_enable(struct clk_hw *hw)
 {
 	struct k230_pll *pll = to_k230_pll(hw);
 	struct k230_sysclk *ksc = pll->ksc;
-	unsigned long flags;
 
-	spin_lock_irqsave(&ksc->pll_lock, flags);
+	spin_lock(&ksc->pll_lock);
 	k230_pll_enable_hw(ksc->regs, pll);
-	spin_unlock_irqrestore(&ksc->pll_lock, flags);
+	spin_unlock(&ksc->pll_lock);
 
 	return 0;
 }
@@ -390,17 +404,16 @@ static void k230_pll_disable(struct clk_hw *hw)
 
 	struct k230_pll *pll = to_k230_pll(hw);
 	struct k230_sysclk *ksc = pll->ksc;
-	unsigned long flags;
 	u32 reg;
 
-	spin_lock_irqsave(&ksc->pll_lock, flags);
+	spin_lock(&ksc->pll_lock);
 	reg = readl(pll->gate);
 
 	reg &= ~(K230_PLL_GATE_ENABLE);
 	reg |= (K230_PLL_GATE_WRITE_ENABLE);
 
 	writel(reg, pll->gate);
-	spin_unlock_irqrestore(&ksc->pll_lock, flags);
+	spin_unlock(&ksc->pll_lock);
 }
 
 static int k230_pll_is_enabled(struct clk_hw *hw)
@@ -411,7 +424,7 @@ static int k230_pll_is_enabled(struct clk_hw *hw)
 static int k230_pll_init(struct clk_hw *hw)
 {
 	if (k230_pll_is_enabled(hw)) {
-        	pr_info("%s hardware auto enable, set software enable!", clk_hw_get_name(hw));
+		pr_debug("%s hardware auto prepare, set software enable!", clk_hw_get_name(hw));
 		return clk_prepare_enable(hw->clk);
 	}
 
@@ -422,15 +435,16 @@ static unsigned long k230_pll_get_rate(struct clk_hw *hw,
 				       unsigned long parent_rate)
 {
 	struct k230_pll *pll = to_k230_pll(hw);
-	u32 reg = readl(pll->bypass);
+	u32 reg;
 	u32 r, f, od;
 
+	reg = readl(pll->bypass);
 	if (reg & K230_PLL_BYPASS_ENABLE)
 		return parent_rate;
 
 	reg = readl(pll->lock);
-	if (reg & (K230_PLL_LOCK_REG_OFFSET)) { /* unlocked */
-		pr_err("pll %s is unlock.\n", clk_hw_get_name(hw));
+	if (!(reg & (K230_PLL_STATUS_MASK))) { /* unlocked */
+		pr_err("%s is unlock.", clk_hw_get_name(hw));
 		return 0;
 	}
 	reg = readl(pll->div);
@@ -444,6 +458,7 @@ static unsigned long k230_pll_get_rate(struct clk_hw *hw,
 
 static const struct clk_ops k230_pll_ops = {
 	.init		= k230_pll_init,
+	.prepare	= k230_pll_prepare,
 	/* gate */
 	.enable	        = k230_pll_enable,
 	.disable	= k230_pll_disable,
@@ -484,28 +499,29 @@ static int k230_register_plls(struct device_node *np, struct k230_sysclk *ksc)
 	ret = k230_register_pll(np, ksc, K230_PLL0, "pll0", 1, &k230_pll_ops);
 	if (ret) {
 		pr_err("%pOFP: register PLL0 failed\n", np);
-		return ret;
+		goto out;
 	}
 
 	ret = k230_register_pll(np, ksc, K230_PLL1, "pll1", 1, &k230_pll_ops);
 	if (ret) {
 		pr_err("%pOFP: register PLL1 failed\n", np);
-		return ret;
+		goto out;
 	}
 
 	ret = k230_register_pll(np, ksc, K230_PLL2, "pll2", 1, &k230_pll_ops);
 	if (ret) {
 		pr_err("%pOFP: register PLL2 failed\n", np);
-		return ret;
+		goto out;
 	}
 
 	ret = k230_register_pll(np, ksc, K230_PLL3, "pll3", 1, &k230_pll_ops);
 	if (ret) {
 		pr_err("%pOFP: register PLL3 failed\n", np);
-		return ret;
+		goto out;
 	}
 
-	return 0;
+out:
+	return ret;
 }
 
 static int k230_register_pll_divs(struct device_node *np, struct k230_sysclk *ksc)
@@ -526,13 +542,6 @@ static int k230_clk_enable(struct clk_hw *hw)
 	struct k230_clk_cfg *cfg = &k230_clk_cfgs[clk->id];
 	unsigned long flags;
 	u32 reg;
-        
-        pr_info("clk:%d %s", clk->id, __func__);
-
-        if (!cfg->have_gate) {
-                pr_err("This clock doesn't have gate, can't be controled by enabling it");
-                return -1;
-        }
 
 	pr_debug("clk:%d %s", clk->id, __func__);
 
@@ -663,9 +672,9 @@ static unsigned long k230_clk_get_rate(struct clk_hw *hw,
 
 	switch (cfg->method) {
 	/*
-	 *  K230_MUL: 1/div_max, 2/div_max, 3/div_max...
-	 *  K230_DIV: mul_max/1, mul_max/2, mul_max/3...
-	 *  K230_MUL_DIV: x/y...
+	 * K230_MUL: div_mask+1/div_max...
+	 * K230_DIV: mul_max/div_mask+1
+	 * K230_MUL_DIV: mul_mask/div_mask...
 	 */
 	case K230_MUL:
 		div = cfg->rate_div_max;
@@ -799,7 +808,7 @@ static int k230_clk_find_approximate(struct k230_clk *clk,
 			}
 		}
 
-		*div = div_min;
+		*div = div_max;
 		break;
 	/* only div can be changeable, 1/1,1/2,1/3...*/
 	case K230_DIV:
@@ -817,7 +826,7 @@ static int k230_clk_find_approximate(struct k230_clk *clk,
 			}
 		}
 
-		*mul = mul_min;
+		*mul = mul_max;
 		break;
 	/* mul and div can be changeable. */
 	case K230_MUL_DIV:
@@ -1264,7 +1273,8 @@ static int k230_clk_init_clk_plls(struct device_node *np)
 	}
 
 out_unmap:
-	iounmap(ksc->pll_regs);
+	if (ret)
+		iounmap(ksc->pll_regs);
 out:
 	return ret;
 }
@@ -1302,7 +1312,8 @@ static int k230_clk_init_clk_composite(struct device_node *np)
 	}
 
 out_unmap:
-	iounmap(ksc->regs);
+	if (ret)
+		iounmap(ksc->regs);
 out:
 	return ret;
 }
@@ -1328,74 +1339,72 @@ static void __init k230_clk_init_clks(struct device_node *np)
 CLK_OF_DECLARE_DRIVER(k230_clk, "canaan,k230-clk", k230_clk_init_clks);
 
 /* test part */
-
 static int test_driver_probe(struct platform_device *pdev)
 {
-        int ret = 0;
-        unsigned long rate = 0;
+	int ret = 0;
+	unsigned long rate = 0;
 
-        printk("%s\n", __func__) ;
-        struct device* dev = &pdev->dev;
-        struct clk* clk = devm_clk_get(dev, "test_node");
-        if (IS_ERR(clk)) {
-                dev_err(dev, "failed to find clock provider");
-                ret = PTR_ERR(clk);
-                goto probe_out_free_dev;
-        }
+	printk("%s\n", __func__);
+	struct device *dev = &pdev->dev;
+	struct clk *clk = devm_clk_get(dev, "cpu0_pclk");
+	if (IS_ERR(clk)) {
+		dev_err(dev, "failed to find clock provider");
+		ret = PTR_ERR(clk);
+		goto out;
+	}
 
-        ret = clk_prepare_enable(clk);
-        if (ret) {
-                dev_err(dev, "failed to prepare_enable clk");
-                goto probe_out_free_dev;
-        }
+	ret = clk_prepare_enable(clk);
+	if (ret) {
+		dev_err(dev, "failed to prepare_enable clk");
+		goto probe_out_free_dev;
+	}
 
-        rate = clk_round_rate(clk, 30000);
-        pr_info("round the rate:%lu", rate);
-        ret = clk_set_rate(clk, rate);
-        if (ret) {
-                pr_err("clk_set_rate get the return value %d", ret);
-        }
+	rate = clk_round_rate(clk, 30000);
+	printk("round the rate:%lu", rate);
+	ret = clk_set_rate(clk, rate);
+	if (ret)
+		pr_err("clk_set_rate get the return value %d", ret);
 
-        rate = clk_get_rate(clk);
-        pr_info("get the rate:%lu", rate);
-        goto out;
+	rate = clk_get_rate(clk);
+	printk("get the rate:%lu", rate);
+	goto out;
 
 probe_out_free_dev:
 
 out:
-        return ret;
+	return ret;
 }
 
 static void test_driver_remove(struct platform_device *pdev)
 {
-        printk("%s\n", __func__) ;
+	printk("%s\n", __func__) ;
 }
 
 static const struct of_device_id test_match_table[] = {
-        { .compatible = "canaan,test-node",},
-        {}
+	{ .compatible = "canaan,test-node",},
+	{}
 };
 MODULE_DEVICE_TABLE(of, test_match_table);
 
 static struct platform_driver test_driver = {
-        .driver = {
-                .name = "test_driver",
-                .of_match_table = test_match_table,
-        },
-        .probe = test_driver_probe,
-        .remove = test_driver_remove,
+	.driver = {
+		.name = "test_driver",
+		.of_match_table = test_match_table,
+	},
+	.probe = test_driver_probe,
+	.remove = test_driver_remove,
 };
 
 static int __init test_driver_init(void)
 {
-        printk("%s\n", __func__) ;
-        return platform_driver_register(&test_driver);
+	printk("%s\n", __func__) ;
+	return platform_driver_register(&test_driver);
 }
 
 static void __exit test_driver_exit(void)
 {
-        printk("%s\n", __func__) ;
-        platform_driver_unregister(&test_driver);
+	printk("%s\n", __func__) ;
+	platform_driver_unregister(&test_driver);
 }
 
 module_init(test_driver_init);
