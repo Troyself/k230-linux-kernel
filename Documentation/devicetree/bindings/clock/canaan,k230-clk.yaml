@@ -47,12 +47,12 @@ examples:
 
     sysclk: clock-controller {
     	compatible = "canaan,k230-clk";
-    	reg = <0x0 0x91100000 0x0 0x1000>, <0x0 0x91102000 0x0 0x1000>;
+        reg = <0x0 0x91102000 0x0 0x1000>, <0x0 0x91100000 0x0 0x1000>;
     	#clock-cells = <1>;
 
     	clocks = <&osc24m>;
     	clock-output-names = "CPU0_SRC",
-    	"CPU0_ACLK", "CPU0_PLIC", "CPU0_NOC_DDRCP5", "CPU0_PCLK",
+    	"CPU0_ACLK", "CPU0_PLIC", "CPU0_NOC_DDRCP4", "CPU0_PCLK",
     	"PMU_PCLK", "HS_HCLK_HIGN_SRC", "HS_HCLK_HIGN_GATE",
     	"HS_HCLK_SRC", "HS_SD0_HS_AHB_GAT", "HS_SD1_HS_AHB_GAT",
     	"HS_SSI1_HS_AHB_GA", "HS_SSI2_HS_AHB_GA", "HS_USB0_HS_AHB_GA",
@@ -70,6 +70,6 @@ examples:
     /* Consumer Usage: */
     test {
       clocks = <&sysclk K230_CPU0_SRC>;
-      clock-names = "test_node";
+      clock-names = "cpu0_src";
     };
 };
