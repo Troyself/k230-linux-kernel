@@ -71,11 +71,11 @@
 		#clock-cells = <0>;
 	};
 
-	osc24m: oscillator {
+	osc24m: clock-24m{
 		compatible = "fixed-clock";
+
 		#clock-cells = <0>;
 		clock-frequency = <24000000>;
-		clock-accuracy = <0>;
 		clock-output-names = "osc24m";
 
 		status = "okay";
@@ -158,8 +158,8 @@
 		sysclk: clock-controller {
 			compatible = "canaan,k230-clk";
 			reg = <0x0 0x91102000 0x0 0x1000>, <0x0 0x91100000 0x0 0x1000>;
-			#clock-cells = <1>;
 
+			#clock-cells = <1>;
 			clocks = <&osc24m>;
 			clock-output-names = "CPU0_SRC",
 			"CPU0_ACLK", "CPU0_PLIC", "CPU0_NOC_DDRCP4", "CPU0_PCLK",
