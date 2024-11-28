@@ -7,13 +7,12 @@ $schema: http://devicetree.org/meta-schemas/core.yaml#
 title: Canaan Kendryte K230 Clock
 
 maintainers:
-  - Bo Wang <Juvenoia@...>
   - Xukai Wang <kingxukai@zohomail.com>
 
 description:
   Canaan Kendryte K230 SoC clocks driver bindings. The clock
-  controller node must be defined as a child node of the K230
-  system controller node.
+  consumer node must be defined as a child node of the K230
+  controller-clock node.
 
 properties:
   compatible:
@@ -65,11 +64,5 @@ examples:
     	"HS_SD1_TIMER_GATE", "HS_USB0_REFERENCE", "HS_USB1_REFERENCE";
 
     	status = "okay";
-    };
-
-    /* Consumer Usage: */
-    test {
-      clocks = <&sysclk K230_CPU0_SRC>;
-      clock-names = "cpu0_src";
     };
 };
