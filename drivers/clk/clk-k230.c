@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Author: Bo Wang <Juvenoia@...>
  * Author: Xukai Wang <kingxukai@zohomail.com>
  * Kendryte Canaan K230 Clock Drivers
  */
@@ -472,9 +471,11 @@ static unsigned long k230_pll_get_rate(struct clk_hw *hw,
 static const struct clk_ops k230_pll_ops = {
 	.init		= k230_pll_init,
 	.prepare	= k230_pll_prepare,
+	/* gate */
 	.enable	        = k230_pll_enable,
 	.disable	= k230_pll_disable,
 	.is_enabled	= k230_pll_is_enabled,
+	/* rate */
 	.recalc_rate	= k230_pll_get_rate,
 };
 
