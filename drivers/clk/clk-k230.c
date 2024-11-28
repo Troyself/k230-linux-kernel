@@ -492,7 +492,7 @@ static int k230_register_pll(struct device_node *np,
 	struct clk_init_data init = {};
 	int ret;
 	const struct clk_parent_data parent_data[] = {
-		{ /* .index = 0 for osc24m */ }, /* pll0-3 are son of osc24m. */
+		{ .index = 0, }, /* pll0-3 are son of osc24m. */
 	};
 
 	init.name = name;
@@ -1069,7 +1069,7 @@ static int k230_register_osc24m_child(struct device_node *np,
 					      struct k230_sysclk *ksc, int id)
 {
 	const struct clk_parent_data parent_data = {
-		/* .index = 0 for osc24m.. */
+		.index = 0,
 	};
 	return k230_register_clk(np, ksc, id, &parent_data, 1, 0);
 }
