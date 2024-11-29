@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Author: Xukai Wang <kingxukai@zohomail.com>
+ * Author: Troy Mitchell <troymitchell988@gmail.com>
  * Kendryte Canaan K230 Clock Drivers
  */
-#define pr_fmt(fmt)     "K230-clk: " fmt
-
 #include <linux/bug.h>
 #include <linux/bitfield.h>
 #include <linux/clk.h>
@@ -347,6 +346,8 @@ static struct k230_clk_cfg k230_clk_cfgs[] = {
 #define K230_NUM_CLKS ARRAY_SIZE(k230_clk_cfgs)
 
 struct k230_sysclk {
+	/* just for print */
+	struct device_node *np;
 	void __iomem			*pll_regs, *regs;
 	spinlock_t			pll_lock, clk_lock;
 	struct k230_pll			plls[K230_PLL_NUM];
@@ -379,7 +380,7 @@ static int k230_pll_prepare(struct clk_hw *hw)
 				 400, 0);
 	/* this will not happen actually */
 	if (ret)
-		pr_err("PLL timeout! \n");
+		pr_err("%pOFP: PLL timeout! \n", pll->ksc->np);
 
 	return ret;
 }
@@ -443,8 +444,7 @@ static int k230_pll_init(struct clk_hw *hw)
 	return 0;
 }
 
-static unsigned long k230_pll_get_rate(struct clk_hw *hw,
-				       unsigned long parent_rate)
+static unsigned long k230_pll_get_rate(struct clk_hw *hw, unsigned long parent_rate)
 {
 	struct k230_pll *pll = to_k230_pll(hw);
 	u32 reg;
@@ -456,7 +456,7 @@ static unsigned long k230_pll_get_rate(struct clk_hw *hw,
 
 	reg = readl(pll->lock);
 	if (!(reg & (K230_PLL_STATUS_MASK))) { /* unlocked */
-		pr_err("%s is unlock.", clk_hw_get_name(hw));
+		pr_err("%pOFP: %s is unlock.", pll->ksc->np, clk_hw_get_name(hw));
 		return 0;
 	}
 	reg = readl(pll->div);
@@ -480,9 +480,11 @@ static const struct clk_ops k230_pll_ops = {
 };
 
 static int k230_register_pll(struct device_node *np,
-				    struct k230_sysclk *ksc,
-				    enum k230_pll_id pllid, const char *name,
-				    int num_parents, const struct clk_ops *ops)
+			     struct k230_sysclk *ksc,
+			     enum k230_pll_id pllid,
+			     const char *name,
+			     int num_parents,
+			     const struct clk_ops *ops)
 {
 	struct k230_pll *pll = &ksc->plls[pllid];
 	struct clk_init_data init = {};
@@ -528,19 +530,18 @@ static int k230_register_plls(struct device_node *np, struct k230_sysclk *ksc)
 	}
 
 out:
-	if (i != K230_PLL_NUM) {
+	if (i != K230_PLL_NUM)
 		for (i--; i >= 0; i--) {
 			cfg = &k230_pll_cfgs[i];
 
 			clk_hw_unregister(&ksc->plls[cfg->pll_id].hw);
-			pr_warn("Unregistered PLL: %s\n", cfg->name);
+			pr_warn("%pOFP: Unregistered PLL: %s\n", np, cfg->name);
 		}
-	}
 
 	return ret;
 }
 
-static int k230_register_pll_divs(struct device_node *np, struct k230_sysclk *ksc)
+static void k230_register_pll_divs(struct device_node *np, struct k230_sysclk *ksc)
 {
 	for (int i = 0; i < K230_PLL_DIV_NUM; i++) {
 		ksc->dclks[i].hw = clk_hw_register_fixed_factor(NULL, k230_pll_div_cfgs[i].name,
@@ -548,7 +549,6 @@ static int k230_register_pll_divs(struct device_node *np, struct k230_sysclk *ks
 								0, 1, k230_pll_div_cfgs[i].div);
 		ksc->dclks[i].ksc = ksc;
 	}
-	return 0;
 }
 
 static int k230_clk_enable(struct clk_hw *hw)
@@ -560,7 +560,7 @@ static int k230_clk_enable(struct clk_hw *hw)
 	u32 reg;
 
 	if (!cfg->have_gate) {
-		pr_err("This clock doesn't have gate");
+		pr_err("%pOFP: This clock doesn't have gate", ksc->np);
 		return -EINVAL;
 	}
 
@@ -585,7 +585,7 @@ static void k230_clk_disable(struct clk_hw *hw)
 	u32 reg;
 
 	if (!cfg->have_gate) {
-		pr_err("This clock doesn't have gate");
+		pr_err("%pOFP: This clock doesn't have gate", ksc->np);
 		return;
 	}
 
@@ -611,7 +611,7 @@ static int k230_clk_is_enabled(struct clk_hw *hw)
 	int ret;
 
 	if (!cfg->have_gate) {
-		pr_err("This clock doesn't have gate");
+		pr_err("%pOFP: This clock doesn't have gate", ksc->np);
 		return -EINVAL;
 	}
 
@@ -638,7 +638,7 @@ static int k230_clk_set_parent(struct clk_hw *hw, u8 index)
 	u8 reg;
 
 	if (!cfg->have_mux) {
-		pr_err("This clock doesn't have mux");
+		pr_err("%pOFP: This clock doesn't have mux", ksc->np);
 		return -EINVAL;
 	}
 
@@ -659,7 +659,7 @@ static u8 k230_clk_get_parent(struct clk_hw *hw)
 	u8 reg;
 
 	if (!cfg->have_mux) {
-		pr_err("This clock doesn't have mux");
+		pr_err("%pOFP: This clock doesn't have mux", ksc->np);
 		return -EINVAL;
 	}
 
@@ -726,10 +726,15 @@ static unsigned long k230_clk_get_rate(struct clk_hw *hw,
 }
 
 static int k230_clk_find_approximate(struct k230_clk *clk,
-					u32 mul_min, u32 mul_max, u32 div_min, u32 div_max,
-					enum k230_clk_div_type method,
-					unsigned long rate, unsigned long parent_rate,
-					u32 *div, u32 *mul)
+				     u32 mul_min,
+				     u32 mul_max,
+				     u32 div_min,
+				     u32 div_max,
+				     enum k230_clk_div_type method,
+				     unsigned long rate,
+				     unsigned long parent_rate,
+				     u32 *div,
+				     u32 *mul)
 {
 	long abs_min;
 	long abs_current;
@@ -846,7 +851,7 @@ static int k230_clk_find_approximate(struct k230_clk *clk,
 	/* mul and div can be changeable. */
 	case K230_MUL_DIV:
 		if (cfg->rate_reg_off == K230_CLK_CODEC_ADC_MCLKDIV_OFFSET ||
-			cfg->rate_reg_off == K230_CLK_CODEC_DAC_MCLKDIV_OFFSET) {
+		    cfg->rate_reg_off == K230_CLK_CODEC_DAC_MCLKDIV_OFFSET) {
 			for (u32 j = 0; j < 9; j++) {
 				if (0 == (rate - codec_clk[j])) {
 					*div = codec_div[j][0];
@@ -854,7 +859,7 @@ static int k230_clk_find_approximate(struct k230_clk *clk,
 				}
 			}
 		} else if (cfg->rate_reg_off == K230_CLK_AUDIO_CLKDIV_OFFSET ||
-			cfg->rate_reg_off == K230_CLK_PDM_CLKDIV_OFFSET) {
+			   cfg->rate_reg_off == K230_CLK_PDM_CLKDIV_OFFSET) {
 			for (u32 j = 0; j < 20; j++) {
 				if (0 == (rate - pdm_clk[j])) {
 					*div = pdm_div[j][0];
@@ -873,8 +878,7 @@ static int k230_clk_find_approximate(struct k230_clk *clk,
 	return 0;
 }
 
-static long k230_clk_round_rate(struct clk_hw *hw, unsigned long rate,
-				unsigned long *parent_rate)
+static long k230_clk_round_rate(struct clk_hw *hw, unsigned long rate, unsigned long *parent_rate)
 {
 	struct k230_clk *clk = to_k230_clk(hw);
 	struct k230_clk_cfg *cfg = &k230_clk_cfgs[clk->id];
@@ -884,7 +888,7 @@ static long k230_clk_round_rate(struct clk_hw *hw, unsigned long rate,
 				      cfg->rate_mul_min, cfg->rate_mul_max,
 				      cfg->rate_div_min, cfg->rate_div_max,
 				      cfg->method, rate, *parent_rate, &div, &mul)) {
-		pr_err("[%s]: clk %s round rate error!\n", __func__, clk_hw_get_name(hw));
+		pr_err("%pOFP: [%s]: clk %s round rate error!\n", clk->ksc->np, __func__, clk_hw_get_name(hw));
 		return -EINVAL;
 	}
 
@@ -900,17 +904,17 @@ static int k230_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 	u32 div = 0, mul = 0, reg = 0, reg_c = 0;
 
 	if ((!cfg->have_rate) || (!cfg->rate_reg)) {
-		pr_err("This clock may have no rate");
+		pr_err("%pOFP: This clock may have no rate", clk->ksc->np);
 		return -EINVAL;
 	}
 
 	if ((rate > parent_rate) || (rate == 0) || (parent_rate == 0)) {
-		pr_err("rate or parent_rate error");
+		pr_err("%pOFP: rate or parent_rate error", clk->ksc->np);
 		return -EINVAL;
 	}
 
 	if (cfg->read_only) {
-		pr_err("This clk rate is read only");
+		pr_err("%pOFP: This clk rate is read only", clk->ksc->np);
 		return -EPERM;
 	}
 
@@ -918,7 +922,7 @@ static int k230_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 				      cfg->rate_mul_min, cfg->rate_mul_max,
 				      cfg->rate_div_min, cfg->rate_div_max,
 				      cfg->method, rate, parent_rate, &div, &mul)) {
-		pr_err("[%s]: clk %s set rate error!\n", __func__, clk_hw_get_name(hw));
+		pr_err("%pOFP: [%s]: clk %s set rate error!\n", clk->ksc->np, __func__, clk_hw_get_name(hw));
 		return -EINVAL;
 	}
 
@@ -1012,9 +1016,12 @@ static const  struct clk_ops k230_clk_ops_arr[K230_CLK_OPS_ID_NUM] = {
 	},
 };
 
-static int k230_register_clk(struct device_node *np, struct k230_sysclk *ksc,
-				int id, const struct clk_parent_data *parent_data,
-				u8 num_parents, unsigned long flags)
+static int k230_register_clk(struct device_node *np,
+			     struct k230_sysclk *ksc,
+			     int id,
+			     const struct clk_parent_data *parent_data,
+			     u8 num_parents,
+			     unsigned long flags)
 {
 	struct k230_clk *clk = &ksc->clks[id];
 	struct k230_clk_cfg *cfg = &k230_clk_cfgs[id];
@@ -1058,8 +1065,7 @@ static int k230_register_clk(struct device_node *np, struct k230_sysclk *ksc,
 
 	ret = of_clk_hw_register(np, &clk->hw);
 	if (ret) {
-		pr_err("%pOFP: register clock %s failed\n",
-			np, k230_clk_cfgs[id].name);
+		pr_err("%pOFP: register clock %s failed\n", np, k230_clk_cfgs[id].name);
 		clk->id = -1;
 		goto out;
 	}
@@ -1085,7 +1091,7 @@ static int k230_register_osc24m_child(struct device_node *np,
 				      int id)
 {
 	const struct clk_parent_data parent_data = {
-		/* .index = 0 for osc24m.. */
+		.fw_name = "osc24m"
 	};
 	return k230_register_clk(np, ksc, id, &parent_data, 1, 0);
 }
@@ -1154,7 +1160,7 @@ static int k230_clk_mux_get_hw(struct k230_sysclk *ksc,
 			       struct clk_hw **hw1,
 			       struct clk_hw **hw2)
 {
-	int ret = 0;
+	int ret;
 	struct k230_clk_parent *pclk1, *pclk2;
 
 	pclk1 = &cfg->parent1;
@@ -1162,12 +1168,10 @@ static int k230_clk_mux_get_hw(struct k230_sysclk *ksc,
 
 	ret = _k230_clk_mux_get_hw(ksc, pclk1, hw1);
 	if (ret)
-		goto out;
+		return ret;
 
 	ret = _k230_clk_mux_get_hw(ksc, pclk2, hw2);
-	if (ret)
-		goto out;
-out:
+
 	return ret;
 }
 
@@ -1176,14 +1180,14 @@ static int k230_register_clks(struct device_node *np, struct k230_sysclk *ksc)
 	struct k230_clk_cfg *cfg;
 	struct k230_clk_parent *pclk;
 	struct clk_hw *hw1, *hw2;
-	int ret = 0;
+	int ret, i;
 
 	/*
 	 *  pll0_div2 sons: CPU0_SRC
 	 *  pll0_div4 sons: CPU0_PCLK
 	 *  CPU0_SRC sons: CPU0_ACLK, CPU0_PLIC, CPU0_NOC_DDRCP4
 	 */
-	for (int i = 0; i < K230_NUM_CLKS; i++) {
+	for (i = 0; i < K230_NUM_CLKS; i++) {
 		cfg = &k230_clk_cfgs[i];
 		if (cfg->have_mux) {
 			ret = k230_clk_mux_get_hw(ksc, cfg, &hw1, &hw2);
@@ -1211,7 +1215,7 @@ static int k230_register_clks(struct device_node *np, struct k230_sysclk *ksc)
 				ret = k230_register_clk_child(np, ksc, i, pclk->clk_id);
 				break;
 			default:
-				pr_err("Invalid type");
+				pr_err("%pOFP: Invalid type", np);
 				ret = -EINVAL;
 				goto out;
 			}
@@ -1223,6 +1227,13 @@ static int k230_register_clks(struct device_node *np, struct k230_sysclk *ksc)
 	}
 
 out:
+	if (i != K230_NUM_CLKS)
+		for (i--; i >= 0; i--) {
+			cfg = &k230_clk_cfgs[i];
+
+			clk_hw_unregister(&ksc->clks[i].hw);
+			pr_warn("%pOFP: Unregistered clk: %s\n", np, cfg->name);
+		}
 	return ret;
 }
 
@@ -1234,28 +1245,24 @@ static struct clk_hw *k230_clk_hw_onecell_get(struct of_phandle_args *clkspec, v
 	if (clkspec->args_count != 1)
 		return ERR_PTR(-EINVAL);
 	idx = clkspec->args[0];
+	if (idx >= K230_NUM_CLKS)
+		return ERR_PTR(-EINVAL);
 
 	if (!data)
 		return ERR_PTR(-EINVAL);
-
 	ksc = (struct k230_sysclk *)data;
-
-	if (idx >= K230_NUM_CLKS)
-		return ERR_PTR(-EINVAL);
 
 	return &ksc->clks[idx].hw;
 }
 
 static int k230_clk_init_plls(struct device_node *np)
 {
-	/* plls are the very son of osc24m, and reg are from sysctl_boot */
 	struct k230_sysclk *ksc = &clksrc;
 	int ret = 0;
 
 	if (!np) {
-		pr_err("device node pointer is NULL");
-		ret = -EINVAL;
-		goto out;
+		pr_err("%pOFP: device node pointer is NULL", np);
+		return -EINVAL;
 	}
 
 	spin_lock_init(&ksc->pll_lock);
@@ -1272,17 +1279,11 @@ static int k230_clk_init_plls(struct device_node *np)
 		goto out_unmap;
 	}
 
-	/* Registration for all pll_divs */
-	ret = k230_register_pll_divs(np, ksc);
-	if (ret) {
-		pr_err("%p register pll divs failed %d", np, ret);
-		goto out_unmap;
-	}
+	k230_register_pll_divs(np, ksc);
 
 out_unmap:
 	if (ret)
 		iounmap(ksc->pll_regs);
-out:
 	return ret;
 }
 
@@ -1292,9 +1293,8 @@ static int k230_clk_init_sysclk(struct device_node *np)
 	int ret = 0;
 
 	if (!np) {
-		pr_err("device node pointer is NULL");
-		ret = -EINVAL;
-		goto out;
+		pr_err("%pOFP: device node pointer is NULL", np);
+		return -EINVAL;
 	}
 
 	spin_lock_init(&ksc->clk_lock);
@@ -1302,8 +1302,7 @@ static int k230_clk_init_sysclk(struct device_node *np)
 	ksc->regs = of_iomap(np, 1);
 	if (!ksc->regs) {
 		pr_err("%pOFP: failed to map registers\n", np);
-		ret = -ENOMEM;
-		goto out;
+		return -ENOMEM;
 	}
 
 	ret = k230_register_clks(np, ksc);
@@ -1313,21 +1312,21 @@ static int k230_clk_init_sysclk(struct device_node *np)
 	}
 
 	ret = of_clk_add_hw_provider(np, k230_clk_hw_onecell_get, ksc);
-	if (ret) {
+	if (ret)
 		pr_err("%pOFP: add clock provider failed %d\n", np, ret);
-		goto out_unmap;
-	}
 
 out_unmap:
 	if (ret)
 		iounmap(ksc->regs);
-out:
 	return ret;
 }
 
 static void __init k230_clk_init_clks(struct device_node *np)
 {
+	struct k230_sysclk *ksc = &clksrc;
 	int ret = 0;
+
+	ksc->np = np;
 
 	ret = k230_clk_init_plls(np);
 	if (ret) {
