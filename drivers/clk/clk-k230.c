@@ -379,7 +379,7 @@ static int k230_pll_prepare(struct clk_hw *hw)
 				 400, 0);
 	/* this will not happen actually */
 	if (ret)
-		pr_err("%pOFP: PLL timeout! \n", pll->ksc->np);
+		pr_err("%pOFP: PLL timeout!", pll->ksc->np);
 
 	return ret;
 }
